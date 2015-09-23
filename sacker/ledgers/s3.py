@@ -68,6 +68,7 @@ class S3Ledger(Ledger):
         Metadata=metadata or {},
         Body=json.dumps(json_blob)
     )
+    return version + 1
 
   def remove(self, package_name, generation):
     pass
