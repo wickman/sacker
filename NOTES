@@ -1,0 +1,56 @@
+options:
+  --ledger-bucket
+  --data-bucket-prefix
+  --profile
+  --mfa-arn
+
+.sackerrc
+.sackersession
+
+sacker gc
+sacker init
+sacker list
+sacker tags     <package>
+sacker versions <package>
+sacker add      <package> <filename>
+sacker remove   <package> <generation>
+sacker info     <package> <spec>
+sacker download <package> <spec> [<filename>]
+sacker tag      <package> <generation> <tag>
+sacker untag    <package> <generation> <tag>
+
+  - n.b. each tag name (e.g. "live", "dev") can be set per package
+  - sacker tag chatman 3 live
+  - sacker tag chatman 4 live --> live is moved from 3 to 4
+
+/ <data-bucket> / <sha>
+
+/ <ledger-bucket> / .names / <package names>   # index
+/ <ledger-bucket> / <b64 package name>         # reserve for future use e.g. sse-c
+
+/ <ledger-bucket> / package name / tags / <tagname>
+/ <ledger-bucket> / package name / generations / <number>
+
+metadata in tags:
+  { 'generation': 23 }
+
+metadata in generation:
+  { 'sha': <str>, 'basename': <str>, 'mode': 0755 }
+
+probably useful:
+  user
+  date
+
+note: db/<sha> replicated to multiple regions but packages single region
+for the sake of consistency?
+
+dynamo ledger:
+  dynamo://{table-prefix}
+  -> {table-prefix}-generations
+  -> {table-prefix}-tags
+
+generations table
+  - {package : generation} -> {sha:, basename:, mode:, metadata:{}}
+
+tags table
+  - {package : tag} -> {value:, metadata:{}}
