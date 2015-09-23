@@ -1,221 +1,54 @@
-import base64
-import hashlib
-
-from boto3.session import Session
-from boto3.s3.transfer import S3Transfer
+from sacker.ledger import parse_ledger
+from sacker.store import parse_store
+from sacker.util import compute_hash, die
 
 
-class SackerDataStore(object):
-  class Error(Exception): pass
-  class ObjectExists(Error): pass
-  class ObjectDoesNotExist(Error): pass
-
-  def upload(self, sha, filename):
-    """returns sha, raises ObjectExists"""
-    raise NotImplemented
-  
-  def delete(self, sha):
-    """returns nothing, raises ObjectDoesNotExist"""
-    raise NotImplemented
+def gc_command(ledger, store, delete=False):
+  raise NotImplemented
 
 
-class ChainedStore(SackerDataStore):
-  def __init__(self, stores):
-    self.stores = stores
-  
-  # TODO(wickman) figure out recovery semantics
-  def upload(self, sha, filename):
-    for store in self.stores:
-      store.upload(sha, filename)
-  
-  def delete(self, sha):
-    for store in self.stores:
-      store.delete(sha)
+def init_command(ledger, store):
+  raise NotImplemented
 
 
-class SackerS3Store(SackerDataStore):
-  def __init__(self, bucket, connection):
-    self.bucket = bucket
-    self.connection = self.connection
-  
-  def upload(self, sha, filename):
-    transfer = S3Transfer(self.connection)
-    transfer.upload_file(filename, self.bucket, sha)
-  
-  def download(self, sha, filename):
-    transfer = S3Transfer(self.connection)
-    transfer.download_file(self.bucket, sha, filename)
-  
-  def delete(self, sha):
-    self.connection.delete(Bucket=self.bucket, Key=sha)
+def list_command(ledger, store):
+  ledger.list_packages()
 
 
-def compute_hash(filelike, chunksize=65536, hasher=hashlib.sha256):
-  hash = hasher()
-
-  while True:
-    data = filelike.read(chunksize)
-    if data:
-      hash.update(data)
-    else:
-      break
-  
-  return hash.hexdigest()
+def versions_command(ledger, store, args):
+  ledger.list_package_versions(args.package)
 
 
-class Package(object):
-  def __init__(self, name, generation, sha, basename, mode, metadata=None):
-    self.name, self.generation, self.sha, self.basename, self.mode, self.metadata = (
-        name, generation, sha, basename, mode, metadata or {})
+def info_command(ledger, store, args):
+  ledger.info(args.package, args.spec)
 
 
-# TODO(wickman):
-#   - Document the case where latest version is removed and re-added.
-#   - Document race conditions.
-#   - If this concerns people, provide Zookeeper ledger with stronger consistency.
-
-class Ledger(object):
-  def list_packages(self):
-    pass
-  
-  def list_package_versions(self, package_name):
-    pass
-  
-  def add(self, package_name, basename, sha, metadata=None):
-    pass
-  
-  def remove(self, package_name, generation):
-    pass
-  
-  def info(self, package_name, generation):
-    pass
-  
-  def tag(self, package_name, generation, tag_name):
-    pass
-  
-  def untag(self, package_name, tag_name):
-    pass
-  
-  def tags(self, package_name):
-    pass
+def add_command(ledger, store, args):
+  with open(args.filename, 'rb') as fp:
+    sha = compute_hash(fp)
+  store.upload(sha, args.filename)
+  ledger.add(args.package, os.path.basename(args.filename), sha, metadata=args.metadata)
 
 
-class S3Ledger(Ledger):
-  PAGE_SIZE = 100
-  TAG_SEPARATOR = 'tags'
-  GENERATION_SEPARATOR = 'generations'
+def download_command(ledger, store, args):
+  info = ledger.info(args.package, args.spec)
+  store.download(info.sha, args.filename or info.basename)
 
-  @classmethod
-  def get_name(cls, key):
-    skey = key.split('/')
-    assert len(skey) > 2
-    return '/'.join(skey[:-2])
 
-  def __init__(self, bucket_name):
-    self.bucket_name = bucket_name
-  
-  def list_packages(self):
-    bucket = boto3.resource('s3').bucket(self.bucket_name)
-    encountered_packages = set()
-    for obj in bucket.objects.page_size(self.PAGE_SIZE):
-      name = self.get_name(obj.key)
-      if name not in encountered_packages:
-        yield name
-        encountered_packages.add(name)
-  
-  # TODO(wickman) More input validation
-  def list_package_versions(self, package_name):
-    bucket = boto3.resource('s3').bucket(self.bucket_name)
-    object_iterator = bucket.objects.filter(
-        Prefix='%s/generations/' % package_name).page_size(self.PAGE_SIZE)
-    for obj in object_iterator:
-      yield int(obj.key.split('/')[-1])
+def remove_command(ledger, store, args):
+  ledger.remove(args.package, args.generation)
 
-  def add(self, package_name, filename, sha, mode, metadata=None):
-    try:
-      version = max(self.list_package_versions())
-    except ValueError:
-      version = 0
-    json_blob = {
-        'sha': sha,
-        'basename': os.path.basename(filename),
-        'mode': os.stat(filename).st_mode,
-    }
-    s3 = boto3.client('s3')
-    s3.put_object(
-        Bucket=self.bucket_name,
-        Key='%s/generations/%s' % (package_name, version + 1),
-        Metadata=metadata or {},
-        Body=json.dumps(json_blob)
-    )
-    
-  def remove(self, package_name, generation):
-    pass
-  
-  def info(self, package_name, generation):
-    package_info = (boto3.resource('s3')
-        .Bucket(self.bucket_name)
-        .Object('%s/generations/%s' % (self.package_name, generation))).get()
-    package_content = json.loads(package_info['Body'].read())
-    return Package(
-        package_name,
-        generation,
-        package_content['sha'],
-        package_content['basename'],
-        package_content['mode'],
-        package_info['Metadata'],
-    )
-    
-  def tag(self, package_name, generation, tag_name):
-    pass
-  
-  def untag(self, package_name, tag_name):
-    pass
-  
-  def tags(self, package_name):
-    pass
-  
 
-class Sacker(object):
-  def __init__(self, metadata_store, data_store, hasher=hashlib.sha256):
-    self.metadata_store = metadata_store
-    self.data_store = data_store
-    self.hasher = hasher
-  
-  def gc(self, delete=False):
-    raise NotImplemented
-  
-  def list(self):
-    return self.metadata_store.list_packages()
-  
-  def versions(self, package):
-    return self.metadata_store.list_package_versions(package)
-    
-  def add(self, package, filename, metadata=None):
-    with open(filename, 'rb') as fp:
-      sha = compute_hash(fp, self.hasher)
-    self.data_store.upload(sha, filename)
-    return self.metadata_store.add(
-        package, os.path.basename(filename), sha, metadata=metadata)
+def tag_command(ledger, store, args):
+  ledger.tag(args.package, args.generation, args.tag_name)
 
-  def remove(self, package, generation):
-    return self.metadata_store.remove(package, generation)
-  
-  def info(self, package, spec):
-    return self.metadata_store.info(package, spec)
 
-  def download(self, package, spec, filename=None):
-    info = self.info(package, spec)
-    self.data_store.download(info.sha, filename or info.basename)
-  
-  def tag(self, package_name, generation, tag_name):
-    self.metadata_store.tag(package, generation, tag_name)
-  
-  def untag(self, package_name, tag_name):
-    self.metadata_store.untag(package_name, tag_name)
+def untag_command(ledger, store, args):
+  ledger.untag(args.package, args.tag_name)
 
-  def tags(self, package_name):
-    return self.metadata_store.tags(package_name)
+
+def tags_command(ledger, store, args):
+  ledger.tags(args.package)
 
 
 # ledger e.g.
@@ -229,8 +62,114 @@ class Sacker(object):
 #    /dir
 
 
+class LedgerAction(argparse.Action):
+  def __call__(self, parser, namespace, values, option_string=None):
+    setattr(namespace, self.dest, parse_ledger(values[0]))
+
+
+class StoreAction(argparse.Action):
+  def __call__(self, parser, namespace, values, option_string=None):
+    setattr(namespace, self.dest, parse_store(values[0]))
+
+
 def setup_argparser():
   parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '--ledger',
+      help='Override the ledger backend.',
+      action=LedgerAction,
+      nargs=1,
+      default=None)
+  parser.add_argument(
+      '--store',
+      help='Override the storage backend.',
+      action=StoreAction,
+      nargs=1,
+      default=None)
+
   subcommand_parser = parser.add_subparsers(help='subcommand help')
-  
-  
+
+  gc_parser = subcommand_parser.add_parser('gc', help='GC the store')
+  gc_parser.set_defaults(func=gc_command)
+
+  init_parser = subcommand_parser.add_parser('init', help='Initialize the store')
+  init_parser.set_defaults(func=init_command)
+
+  list_parser = subcommand_parser.add_parser('list', help='List packages')
+  # todo add package prefix?
+  list_parser.set_defaults(func=list_command)
+
+  versions_parser = subcommand_parser.add_parser('versions', help='List package versions')
+  versions_parser.set_defaults(func=versions_command)
+  versions_parser.add_argument('package', help='Package name')
+
+  info_parser = subcommand_parser.add_parser('info',
+      help='Get information about a specific package version.')
+  info_parser.set_defaults(func=info_command)
+  info_parser.add_argument('package', help='Package name')
+  info_parser.add_argument('version', type=int, help='Package version')
+
+  add_parser = subcommand_parser.add_parser('add', help='Add a new package version.')
+  add_parser.set_defaults(func=add_command)
+  add_parser.add_argument('package', help='Package name')
+  add_parser.add_argument('filename', help='Package filename')
+
+  download_parser = subcommand_parser.add_parser('download', help='Download a package.')
+  download_parser.set_defaults(func=download_command)
+  download_parser.add_argument('package', help='Package name')
+  download_parser.add_argument('spec', help='Package version or tag')
+  download_parser.add_argument(
+      '-o', dest='output_filename', default=None, help='Optional destination for file.')
+
+  remove_parser = subcommand_parser.add_parser(
+      'remove', help='Remove a package version from available packages.')
+  remove_parser.set_defaults(func=remove_command)
+  remove_parser.add_argument('package', help='Package name')
+  remove_parser.add_argument('version', help='Package version')
+
+  tag_parser = subcommand_parser.add_parser('tag', help='Tag a package with a label.')
+  tag_parser.set_defaults(func=tag_command)
+  tag_parser.add_argument('package', help='Package name')
+  tag_parser.add_argument('version', help='Package version')
+  tag_parser.add_argument('label', help='Package label')
+
+  untag_parser = subcommand_parser.add_parser('untag', help='Untag label from package.')
+  untag_parser.set_defaults(func=untag_command)
+  untag_parser.add_argument('package', help='Package name')
+  untag_parser.add_argument('label', help='Package label')
+
+  tags_parser = subcommand_parser.add_parser('tags', help='List all tagged labels of a package.')
+  tags_parser.set_defaults(func=tags_command)
+  tags_parser.add_argument('package', help='Package name')
+  tags_parser.add_argument('label', help='Package label')
+
+  return parser
+
+
+def setup_defaults(args):
+  for path in os.environ.get('SACKER_CONFIG'), os.path.expanduser('~/.sacker.json'):
+    if not path:
+      continue
+
+    with open(path, 'rb') as fp:
+      config = json.load(fp)
+
+    if 'ledger' in config and not args.ledger:
+      args.ledger = parse_ledger(config['ledger'])
+
+    if 'store' in config and not args.store:
+      args.store = parse_store(config['store'])
+
+  if not args.store:
+    die('Must specify a store.')
+
+  if not args.ledger:
+    die('Must specify a ledger.')
+
+
+def main():
+  register_all()
+  parser = setup_argparser()
+  args = parser.parse_args()
+  setup_defaults(args)
+  sys.exit(args.func(args.ledger, args.store, args))

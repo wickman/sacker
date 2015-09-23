@@ -9,15 +9,18 @@ options:
 
 sacker gc
 sacker init
-sacker list
-sacker tags     <package>
+
+sacker list     [<package prefix>]
 sacker versions <package>
-sacker add      <package> <filename>
-sacker remove   <package> <generation>
 sacker info     <package> <spec>
-sacker download <package> <spec> [<filename>]
+
+sacker add      <package> <filename>
+sacker download <package> <spec> [-o <filename>]
+sacker remove   <package> <generation>
+
 sacker tag      <package> <generation> <tag>
 sacker untag    <package> <generation> <tag>
+sacker tags     <package>
 
   - n.b. each tag name (e.g. "live", "dev") can be set per package
   - sacker tag chatman 3 live
