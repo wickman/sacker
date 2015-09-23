@@ -19,6 +19,9 @@ class S3Store(Store):
   def connection(self):
     return boto3.client('s3')
 
+  def init(self):
+    self.connection.create_bucket(Bucket=self.bucket)
+
   def upload(self, sha, filename):
     transfer = S3Transfer(self.connection)
     transfer.upload_file(filename, self.bucket, sha)

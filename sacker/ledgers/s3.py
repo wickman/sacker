@@ -5,6 +5,7 @@ from sacker.ledger import Ledger
 from sacker.package import Package
 
 import boto3
+from botocore.exceptions import ClientError
 
 
 # TODO(wickman):
@@ -32,6 +33,9 @@ class S3Ledger(Ledger):
   def __init__(self, bucket_name):
     self.bucket_name = bucket_name
 
+  def init(self):
+    boto3.client('s3').create_bucket(Bucket=self.bucket_name)
+
   def list_packages(self):
     bucket = boto3.resource('s3').Bucket(self.bucket_name)
     encountered_packages = set()
@@ -43,7 +47,7 @@ class S3Ledger(Ledger):
 
   # TODO(wickman) More input validation
   def list_package_versions(self, package_name):
-    bucket = boto3.resource('s3').bucket(self.bucket_name)
+    bucket = boto3.resource('s3').Bucket(self.bucket_name)
     object_iterator = bucket.objects.filter(
         Prefix='%s/generations/' % package_name).page_size(self.PAGE_SIZE)
     for obj in object_iterator:
@@ -51,13 +55,13 @@ class S3Ledger(Ledger):
 
   def add(self, package_name, filename, sha, mode, metadata=None):
     try:
-      version = max(self.list_package_versions())
+      version = max(self.list_package_versions(package_name))
     except ValueError:
       version = 0
     json_blob = {
         'sha': sha,
         'basename': os.path.basename(filename),
-        'mode': os.stat(filename).st_mode,
+        'mode': mode,
     }
     s3 = boto3.client('s3')
     s3.put_object(
@@ -70,10 +74,24 @@ class S3Ledger(Ledger):
   def remove(self, package_name, generation):
     pass
 
-  def info(self, package_name, generation):
-    package_info = (boto3.resource('s3')
-        .Bucket(self.bucket_name)
-        .Object('%s/generations/%s' % (self.package_name, generation))).get()
+  def _resolve_tag(self, tag_name):
+    raise NotImplementedError
+
+  def _get_version(self, spec):
+    try:
+      return int(spec)
+    except ValueError:
+      # must be a tag
+      return self._resolve_tag(tag_name)
+
+  def info(self, package_name, spec):
+    generation = self._get_version(spec)
+    try:
+      package_info = (boto3.resource('s3')
+          .Bucket(self.bucket_name)
+          .Object('%s/generations/%s' % (package_name, generation))).get()
+    except ClientError:
+      raise self.DoesNotExist('Package %s has no version %d' % (package_name, generation))
     package_content = json.loads(package_info['Body'].read())
     return Package(
         package_name,

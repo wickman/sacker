@@ -15,7 +15,11 @@ def gc_command(ledger, store, delete=False):
 
 
 def init_command(ledger, store, _):
-  raise NotImplementedError
+  print('Initializing ledger...')
+  ledger.init()
+  print('Initializing store...')
+  store.init()
+  print('done.')
 
 
 def list_command(ledger, store, _):
@@ -24,23 +28,32 @@ def list_command(ledger, store, _):
 
 
 def versions_command(ledger, store, args):
-  ledger.list_package_versions(args.package)
+  for version in ledger.list_package_versions(args.package):
+    print(version)
 
 
 def info_command(ledger, store, args):
-  ledger.info(args.package, args.spec)
+  try:
+    print(ledger.info(args.package, args.spec))
+  except ledger.DoesNotExist as e:
+    die(e)
 
 
 def add_command(ledger, store, args):
   with open(args.filename, 'rb') as fp:
     sha = compute_hash(fp)
   store.upload(sha, args.filename)
-  ledger.add(args.package, os.path.basename(args.filename), sha, metadata=args.metadata)
+  # todo(wickman) add metadata kwarg
+  ledger.add(
+      args.package,
+      os.path.basename(args.filename),
+      sha,
+      os.stat(args.filename).st_mode)
 
 
 def download_command(ledger, store, args):
   info = ledger.info(args.package, args.spec)
-  store.download(info.sha, args.filename or info.basename)
+  store.download(info.sha, args.output_filename or info.basename)
 
 
 def remove_command(ledger, store, args):
@@ -115,7 +128,7 @@ def setup_argparser():
       help='Get information about a specific package version.')
   info_parser.set_defaults(func=info_command)
   info_parser.add_argument('package', help='Package name')
-  info_parser.add_argument('version', type=int, help='Package version')
+  info_parser.add_argument('spec', help='Package version or tag')
 
   add_parser = subcommand_parser.add_parser('add', help='Add a new package version.')
   add_parser.set_defaults(func=add_command)

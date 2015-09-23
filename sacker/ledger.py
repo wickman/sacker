@@ -4,6 +4,10 @@ from .util import die
 
 
 class Ledger(object):
+  class Error(Exception): pass
+  class Exists(Error): pass
+  class DoesNotExist(Error): pass
+
   @classmethod
   def from_netloc(cls, netloc, path):
     raise NotImplementedError
