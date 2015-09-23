@@ -1,7 +1,7 @@
 sacker is a simple cloud blob manager
 
 concepts
-========
+--------
 
 sacker associates a package <name> and an autoincrementing package <version>
 to a <sha>-addressable blob of data stored somewhere.  furthermore, sacker
@@ -22,7 +22,7 @@ weakly consistent and should only be used for testing purposes.
 
 
 query operations
-================
+----------------
 
     sacker list                      : list all packages known to the ledger
     sacker versions <package>        : list package versions
@@ -34,21 +34,21 @@ query operations
 
 
 file operations
-===============
+---------------
 
     sacker add      <package> <filename> : add package and autoincrement latest version
     sacker download <package> <spec>     : download package at <spec>
 
 
 tagging operations
-==================
+------------------
 
     sacker tag      <package> <version> <tag> : assign a tag to package at <version>
     sacker untag    <package> <tag>           : remove tag from package
 
 
 configuring
-===========
+-----------
 
 the ledger and store can be configured using the file ~/.sacker.json with
 two keys "ledger" and "store", e.g.
@@ -63,8 +63,10 @@ to s3 is performed with boto and honors standard AWS_* environment variables.
 
 
 example workflows
-=================
+-----------------
 
 
 development using "live" and "latest"
--------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+stuff.
