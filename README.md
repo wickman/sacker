@@ -66,9 +66,15 @@ example workflows
 -----------------
 
 
-development using "live" and "latest"
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**canary workflow using "live" and "latest"**
 
-things.
+A common pattern is to continuously deploy the package pointed to by
+"latest" into canary/staging.  Uploading a file using `sacker add
+frontend-server build/frontend-server.jar` will upload the new version of
+`frontend-server` and return its version number, e.g.  23.  A cron job doing
+`sacker download frontend-server latest` will pick up this version.
 
-stuff. this is cool. does this even work?
+Once a particular version has been stable in staging/canary for sufficiently
+long, it can be graduated to "live" by tagging it `sacker tag frontend-server 23 live`.
+Production servers can either periodically `sacker download frontend-server live`
+or a deployment against this version can be initiated.

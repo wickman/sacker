@@ -39,16 +39,17 @@ def info_command(ledger, store, args):
     die(e)
 
 
+# TODO(wickman) Stores should only upload if the sha does not already exist.
 def add_command(ledger, store, args):
   with open(args.filename, 'rb') as fp:
     sha = compute_hash(fp)
   store.upload(sha, args.filename)
   # todo(wickman) add metadata kwarg
-  ledger.add(
+  print(ledger.add(
       args.package,
       os.path.basename(args.filename),
       sha,
-      os.stat(args.filename).st_mode)
+      os.stat(args.filename).st_mode))
 
 
 def download_command(ledger, store, args):
