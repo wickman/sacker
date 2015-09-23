@@ -3,17 +3,17 @@ sacker is a simple cloud blob manager
 concepts
 --------
 
-sacker associates a package *name* and an autoincrementing package *version*
-to a *sha*-addressable blob of data stored somewhere.  furthermore, sacker
-can label specific package versions with a *tag*.  there is one reserved
+sacker associates a package **name** and an autoincrementing package **version**
+to a **sha**-addressable blob of data stored somewhere.  furthermore, sacker
+can label specific package versions with a **tag**.  there is one reserved
 tag named "latest" which resolves to the latest package version.
 
-sacker uses a *ledger* to store the associations between package names,
+sacker uses a **ledger** to store the associations between package names,
 package tags, package versions and their corresponding shas.  suitable
 mechanisms for ledger implementations are those that provide semi-strong or
 strong consistency guarantees such as zookeeper, gitdb or dynamo.
 
-sacker uses a *store* to store blobs of data, addressable only by the sha of
+sacker uses a **store** to store blobs of data, addressable only by the sha of
 the blob of data.  suitable backends for sacker stores are data warehouses
 like hdfs or object stores like s3.
 
@@ -29,7 +29,7 @@ query operations
     sacker tags     <package>        : list package tags
     sacker info     <package> <spec> : print information about package at <spec>
 
-*spec* can either be a version number ("7", "23") or a tag name (e.g.
+**spec** can either be a version number ("7", "23") or a tag name (e.g.
 "live", "devel", "latest".)
 
 
