@@ -54,10 +54,8 @@ class S3Ledger(Ledger):
       yield int(obj.key.split('/')[-1])
 
   def add(self, package_name, filename, sha, mode, metadata=None):
-    try:
-      version = max(self.list_package_versions(package_name))
-    except ValueError:
-      version = 0
+    latest_version = self.latest(package_name)
+    version = latest_version or 0
     json_blob = {
         'sha': sha,
         'basename': os.path.basename(filename),
@@ -74,18 +72,32 @@ class S3Ledger(Ledger):
   def remove(self, package_name, generation):
     pass
 
-  def _resolve_tag(self, tag_name):
-    raise NotImplementedError
+  def latest(self, package_name):
+    try:
+      return max(self.list_package_versions(package_name))
+    except ValueError:
+      return None
 
-  def _get_version(self, spec):
+  def _resolve_tag(self, package_name, tag_name):
+    try:
+      tag_info = (boto3.resource('s3')
+          .Bucket(self.bucket_name)
+          .Object('%s/tags/%s' % (package_name, tag_name))).get()
+    except ClientError:
+      raise self.DoesNotExist('Package %s has no tag %r' % (package_name, tag_name))
+    tag_info = json.loads(tag_info['Body'])
+    return tag_info['version']
+
+  def _get_version(self, package_name, spec):
+    if spec == 'latest':
+      return self.latest(package_name)
     try:
       return int(spec)
     except ValueError:
-      # must be a tag
-      return self._resolve_tag(tag_name)
+      return self._resolve_tag(package_name, spec)
 
   def info(self, package_name, spec):
-    generation = self._get_version(spec)
+    generation = self._get_version(package_name, spec)
     try:
       package_info = (boto3.resource('s3')
           .Bucket(self.bucket_name)
@@ -103,10 +115,32 @@ class S3Ledger(Ledger):
     )
 
   def tag(self, package_name, generation, tag_name):
-    pass
+    if '/' in tag_name:
+      raise self.Error('S3 ledger does not support "/" in tag names.')
+    if tag_name == 'latest':
+      raise self.Error('"latest" is a reserved tag.')
+    json_blob = {'version': generation}
+    s3 = boto3.client('s3')
+    s3.put_object(
+        Bucket=self.bucket_name,
+        Key='%s/tags/%s' % (package_name, tag_name),
+        Body=json.dumps(json_blob)
+    )
 
   def untag(self, package_name, tag_name):
-    pass
+    if '/' in tag_name:
+      raise self.Error('S3 ledger does not support "/" in tag names.')
+    if tag_name == 'latest':
+      raise self.Error('"latest" is a reserved tag.')
+    s3 = boto3.client('s3')
+    s3.delete_object(
+        Bucket=self.bucket_name,
+        Key='%s/tags/%s' % (package_name, tag_name),
+    )
 
   def tags(self, package_name):
-    pass
+    bucket = boto3.resource('s3').Bucket(self.bucket_name)
+    object_iterator = bucket.objects.filter(
+        Prefix='%s/tags/' % package_name).page_size(self.PAGE_SIZE)
+    for obj in object_iterator:
+      yield obj.key.split('/')[-1]

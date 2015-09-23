@@ -27,6 +27,9 @@ class Ledger(object):
   def remove(self, package_name, generation):
     raise NotImplementedError
 
+  def latest(self, package_name):
+    raise NotImplementedError
+
   def info(self, package_name, generation):
     raise NotImplementedError
 

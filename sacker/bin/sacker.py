@@ -53,23 +53,26 @@ def add_command(ledger, store, args):
 
 def download_command(ledger, store, args):
   info = ledger.info(args.package, args.spec)
-  store.download(info.sha, args.output_filename or info.basename)
+  output_filename = args.output_filename or info.basename
+  store.download(info.sha, output_filename)
+  print(output_filename)
 
 
 def remove_command(ledger, store, args):
-  ledger.remove(args.package, args.generation)
+  ledger.remove(args.package, args.version)
 
 
 def tag_command(ledger, store, args):
-  ledger.tag(args.package, args.generation, args.tag_name)
+  ledger.tag(args.package, args.version, args.label)
 
 
 def untag_command(ledger, store, args):
-  ledger.untag(args.package, args.tag_name)
+  ledger.untag(args.package, args.label)
 
 
 def tags_command(ledger, store, args):
-  ledger.tags(args.package)
+  for tag in ledger.tags(args.package):
+    print(tag)
 
 
 # ledger e.g.
@@ -162,7 +165,6 @@ def setup_argparser():
   tags_parser = subcommand_parser.add_parser('tags', help='List all tagged labels of a package.')
   tags_parser.set_defaults(func=tags_command)
   tags_parser.add_argument('package', help='Package name')
-  tags_parser.add_argument('label', help='Package label')
 
   return parser
 
