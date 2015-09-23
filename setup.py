@@ -13,7 +13,8 @@ setup(
   packages = [
     'sacker',
     'sacker.bin',
-    'sacker.backends',
+    'sacker.ledgers',
+    'sacker.stores',
   ],
   # todo use extras_require
   install_requires = [

@@ -1,22 +1,31 @@
+from urlparse import urlparse
+
+from .util import die
+
+
 class Store(object):
   class Error(Exception): pass
   class Exists(Error): pass
   class DoesNotExist(Error): pass
+
+  @classmethod
+  def from_netloc(cls, netloc, path):
+    raise NotImplementedError
 
   def init(self):
     pass
 
   def upload(self, sha, filename):
     """returns sha, raises ObjectExists"""
-    raise NotImplemented
+    raise NotImplementedError
 
   def download(self, sha, filename):
     """saves sha to filename"""
-    raise NotImplemented
+    raise NotImplementedError
 
   def delete(self, sha):
     """returns nothing, raises ObjectDoesNotExist"""
-    raise NotImplemented
+    raise NotImplementedError
 
 
 class ChainedStore(Store):
@@ -45,3 +54,23 @@ class ChainedStore(Store):
   def delete(self, sha):
     for store in self.stores:
       store.delete(sha)
+
+
+STORES = {}
+
+
+def register_store(name, impl):
+  STORES[name] = impl
+
+
+def unregister_all():
+  STORES.clear()
+
+
+def parse_store(uri):
+  uri = urlparse(uri)
+
+  if uri.scheme not in STORES:
+    die('Unknown store scheme %r' % uri.scheme)
+
+  return STORES[uri.scheme].from_netloc(uri.netloc, uri.path)

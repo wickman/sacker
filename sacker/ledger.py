@@ -1,27 +1,56 @@
+from urlparse import urlparse
+
+from .util import die
+
+
 class Ledger(object):
+  @classmethod
+  def from_netloc(cls, netloc, path):
+    raise NotImplementedError
+
   def init(self):
     pass
 
   def list_packages(self):
-    raise NotImplemented
+    raise NotImplementedError
 
   def list_package_versions(self, package_name):
-    raise NotImplemented
+    raise NotImplementedError
 
   def add(self, package_name, basename, sha, metadata=None):
-    raise NotImplemented
+    raise NotImplementedError
 
   def remove(self, package_name, generation):
-    raise NotImplemented
+    raise NotImplementedError
 
   def info(self, package_name, generation):
-    raise NotImplemented
+    raise NotImplementedError
 
   def tag(self, package_name, generation, tag_name):
-    raise NotImplemented
+    raise NotImplementedError
 
   def untag(self, package_name, tag_name):
-    raise NotImplemented
+    raise NotImplementedError
 
   def tags(self, package_name):
-    raise NotImplemented
+    raise NotImplementedError
+
+
+LEDGERS = {}
+
+
+def register_ledger(name, impl):
+  LEDGERS[name] = impl
+
+
+def unregister_all():
+  LEDGERS.clear()
+
+
+def parse_ledger(uri):
+  uri = urlparse(uri)
+
+  if uri.scheme not in LEDGERS:
+    die('Unknown ledger scheme %r' % uri.scheme)
+
+  return LEDGERS[uri.scheme].from_netloc(uri.netloc, uri.path)

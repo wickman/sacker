@@ -1,18 +1,26 @@
+from __future__ import absolute_import, print_function
+
+import argparse
+import json
+import os
+import sys
+
 from sacker.ledger import parse_ledger
 from sacker.store import parse_store
 from sacker.util import compute_hash, die
 
 
 def gc_command(ledger, store, delete=False):
-  raise NotImplemented
+  raise NotImplementedError
 
 
-def init_command(ledger, store):
-  raise NotImplemented
+def init_command(ledger, store, _):
+  raise NotImplementedError
 
 
-def list_command(ledger, store):
-  ledger.list_packages()
+def list_command(ledger, store, _):
+  for package_name in ledger.list_packages():
+    print(package_name)
 
 
 def versions_command(ledger, store, args):
@@ -151,8 +159,11 @@ def setup_defaults(args):
     if not path:
       continue
 
-    with open(path, 'rb') as fp:
-      config = json.load(fp)
+    try:
+      with open(path, 'rb') as fp:
+        config = json.load(fp)
+    except IOError:
+      continue
 
     if 'ledger' in config and not args.ledger:
       args.ledger = parse_ledger(config['ledger'])
@@ -165,6 +176,18 @@ def setup_defaults(args):
 
   if not args.ledger:
     die('Must specify a ledger.')
+
+
+# TODO(wickman) Build a proper plugin mechanism
+def register_all():
+  from sacker.ledger import register_ledger
+  from sacker.ledgers.dynamo import DynamoLedger
+  from sacker.ledgers.s3 import S3Ledger
+  from sacker.store import register_store
+  from sacker.stores.s3 import S3Store
+  register_store('s3', S3Store)
+  register_ledger('dynamo', DynamoLedger)
+  register_ledger('s3', S3Ledger)
 
 
 def main():

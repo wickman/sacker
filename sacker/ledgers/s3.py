@@ -1,7 +1,8 @@
 import json
 import os
 
-from ..ledger import Ledger
+from sacker.ledger import Ledger
+from sacker.package import Package
 
 import boto3
 
@@ -22,11 +23,17 @@ class S3Ledger(Ledger):
     assert len(skey) > 2
     return '/'.join(skey[:-2])
 
+  @classmethod
+  def from_netloc(cls, netloc, path):
+    if path not in ('', '/'):
+      raise ValueError('S3 ledger does not take a path.')
+    return cls(netloc)
+
   def __init__(self, bucket_name):
     self.bucket_name = bucket_name
 
   def list_packages(self):
-    bucket = boto3.resource('s3').bucket(self.bucket_name)
+    bucket = boto3.resource('s3').Bucket(self.bucket_name)
     encountered_packages = set()
     for obj in bucket.objects.page_size(self.PAGE_SIZE):
       name = self.get_name(obj.key)
