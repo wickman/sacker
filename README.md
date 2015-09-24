@@ -3,10 +3,11 @@ sacker is a simple cloud blob manager
 concepts
 --------
 
-sacker associates a package **name** and an autoincrementing package **version**
-to a **sha**-addressable blob of data stored somewhere.  furthermore, sacker
-can label specific package versions with a **tag**.  there is one reserved
-tag named "latest" which resolves to the latest package version.
+sacker associates a package **name** and a monotonically increasing package
+**version** to a **sha**-addressable blob of data stored somewhere.
+furthermore, sacker can label specific package versions with a **tag**.
+there is one reserved tag named "latest" which resolves to the latest
+package version.
 
 sacker uses a **ledger** to store the associations between package names,
 package tags, package versions and their corresponding shas.  suitable
@@ -17,8 +18,10 @@ sacker uses a **store** to store blobs of data, addressable only by the sha of
 the blob of data.  suitable backends for sacker stores are data warehouses
 like hdfs or object stores like s3.
 
-sacker comes with both a ledger and store based on s3.  the s3 ledger is
-weakly consistent and should only be used for testing purposes.
+sacker comes with both a ledger and store based on s3.  the s3 ledger
+is compatible with write-only clients and thus may be a suitable
+ledger if you want to push package artifacts from a third-party CI
+provider.
 
 
 query operations
@@ -78,3 +81,11 @@ Once a particular version has been stable in staging/canary for sufficiently
 long, it can be graduated to "live" by tagging it `sacker tag frontend-server 23 live`.
 Production servers can either periodically `sacker download frontend-server live`
 or a deployment against this version can be initiated.
+
+
+example s3 ledger/store iam policy for ci
+-----------------------------------------
+
+a suitable s3 sacker iam policy would be for write-only access to the store
+and write-only access to a specific set of keys.  see
+`examples/ci-aws-iam-policy.json` for an example of such a policy.

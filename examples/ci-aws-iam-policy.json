@@ -1,0 +1,32 @@
+{
+    "Version": "2012-10-17",
+
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "s3:PutObject",
+        "Resource": [
+            "arn:aws:s3:::sacker-store/*",
+            "arn:aws:s3:::sacker-ledger/*/tags/latest",
+            "arn:aws:s3:::sacker-ledger/*/generations/*"
+        ]
+      },
+      {
+        "Effect": "Deny",
+        "NotAction": "s3:PutObject",
+        "Resource": [
+            "arn:aws:s3:::sacker-store/*",
+            "arn:aws:s3:::sacker-ledger/*/tags/latest",
+            "arn:aws:s3:::sacker-ledger/*/generations/*"
+        ]
+      },
+      {
+        "Effect": "Deny",
+        "Action": "s3:*",
+        "Resource": [
+            "arn:aws:s3:::sacker-store",
+            "arn:aws:s3:::sacker-ledger"
+        ]
+      }
+    ]
+}

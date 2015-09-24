@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 from sacker.ledger import Ledger
 from sacker.package import Package
@@ -8,21 +9,12 @@ import boto3
 from botocore.exceptions import ClientError
 
 
-# TODO(wickman):
-#   - Document the case where latest version is removed and re-added.
-#   - Document race conditions.
-#   - If this concerns people, provide Zookeeper ledger with stronger consistency.
-
 class S3Ledger(Ledger):
+  """Ledger based on S3, which is compatible with write-only clients e.g. CI"""
+
   PAGE_SIZE = 100
   TAG_SEPARATOR = 'tags'
   GENERATION_SEPARATOR = 'generations'
-
-  @classmethod
-  def get_name(cls, key):
-    skey = key.split('/')
-    assert len(skey) > 2
-    return '/'.join(skey[:-2])
 
   @classmethod
   def from_uri(cls, uri):
@@ -45,71 +37,74 @@ class S3Ledger(Ledger):
 
   def list_packages(self):
     bucket = boto3.resource('s3').Bucket(self.bucket_name)
-    encountered_packages = set()
+    # Restrict to packages with linked 'latest' tags.
+    latest_suffix = '/%s/latest' % self.TAG_SEPARATOR
     for obj in bucket.objects.page_size(self.PAGE_SIZE):
-      name = self.get_name(obj.key)
-      if name not in encountered_packages:
-        yield name
-        encountered_packages.add(name)
+      if obj.key.endswith(latest_suffix):
+        yield obj.key[:-len(latest_suffix)]
 
   # TODO(wickman) More input validation
   def list_package_versions(self, package_name):
     bucket = boto3.resource('s3').Bucket(self.bucket_name)
     object_iterator = bucket.objects.filter(
-        Prefix='%s/generations/' % package_name).page_size(self.PAGE_SIZE)
+        Prefix='%s/%s/' % (package_name, self.GENERATION_SEPARATOR)
+    ).page_size(self.PAGE_SIZE)
     for obj in object_iterator:
       yield int(obj.key.split('/')[-1])
 
+  def _make_timestamp(self):
+    # micro-ts
+    return int(time.time() * 1000)
+
   def add(self, package_name, filename, sha, mode, metadata=None):
-    latest_version = self.latest(package_name)
-    version = latest_version or 0
     json_blob = {
         'sha': sha,
         'basename': os.path.basename(filename),
         'mode': mode,
     }
     s3 = boto3.client('s3')
+    timestamp = self._make_timestamp()
     s3.put_object(
         Bucket=self.bucket_name,
-        Key='%s/generations/%s' % (package_name, version + 1),
+        Key='%s/%s/%s' % (package_name, self.GENERATION_SEPARATOR, timestamp),
         Metadata=metadata or {},
         Body=json.dumps(json_blob)
     )
-    return version + 1
+    self.tag(package_name, timestamp, 'latest')
+    return timestamp
 
   def remove(self, package_name, generation):
     pass
-
-  def latest(self, package_name):
-    try:
-      return max(self.list_package_versions(package_name))
-    except ValueError:
-      return None
 
   def _resolve_tag(self, package_name, tag_name):
     try:
       tag_info = (boto3.resource('s3')
           .Bucket(self.bucket_name)
-          .Object('%s/tags/%s' % (package_name, tag_name))).get()
+          .Object('%s/%s/%s' % (package_name, self.TAG_SEPARATOR, tag_name))).get()
     except ClientError:
       raise self.DoesNotExist('Package %s has no tag %r' % (package_name, tag_name))
-    tag_info = json.loads(tag_info['Body'])
+    tag_info = json.loads(tag_info['Body'].read())
     return tag_info['version']
 
   def _get_version(self, package_name, spec):
-    if spec == 'latest':
-      return self.latest(package_name)
     try:
       return int(spec)
     except ValueError:
       return self._resolve_tag(package_name, spec)
+
+  def latest(self, package_name):
+    try:
+      return self._resolve_tag(package_name, 'latest')
+    except ValueError:
+      return None
 
   def info(self, package_name, spec):
     generation = self._get_version(package_name, spec)
     try:
       package_info = (boto3.resource('s3')
           .Bucket(self.bucket_name)
-          .Object('%s/generations/%s' % (package_name, generation))).get()
+          .Object('%s/%s/%s' % (package_name, self.GENERATION_SEPARATOR, generation))
+      ).get()
     except ClientError:
       raise self.DoesNotExist('Package %s has no version %d' % (package_name, generation))
     package_content = json.loads(package_info['Body'].read())
@@ -125,30 +120,27 @@ class S3Ledger(Ledger):
   def tag(self, package_name, generation, tag_name):
     if '/' in tag_name:
       raise self.Error('S3 ledger does not support "/" in tag names.')
-    if tag_name == 'latest':
-      raise self.Error('"latest" is a reserved tag.')
     json_blob = {'version': generation}
     s3 = boto3.client('s3')
     s3.put_object(
         Bucket=self.bucket_name,
-        Key='%s/tags/%s' % (package_name, tag_name),
+        Key='%s/%s/%s' % (package_name, self.TAG_SEPARATOR, tag_name),
         Body=json.dumps(json_blob)
     )
 
   def untag(self, package_name, tag_name):
     if '/' in tag_name:
       raise self.Error('S3 ledger does not support "/" in tag names.')
-    if tag_name == 'latest':
-      raise self.Error('"latest" is a reserved tag.')
     s3 = boto3.client('s3')
     s3.delete_object(
         Bucket=self.bucket_name,
-        Key='%s/tags/%s' % (package_name, tag_name),
+        Key='%s/%s/%s' % (package_name, self.TAG_SEPARATOR, tag_name),
     )
 
   def tags(self, package_name):
     bucket = boto3.resource('s3').Bucket(self.bucket_name)
     object_iterator = bucket.objects.filter(
-        Prefix='%s/tags/' % package_name).page_size(self.PAGE_SIZE)
+        Prefix='%s/%s/' % (package_name, self.TAG_SEPARATOR)
+    ).page_size(self.PAGE_SIZE)
     for obj in object_iterator:
       yield obj.key.split('/')[-1]
