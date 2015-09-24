@@ -25,6 +25,13 @@ class S3Ledger(Ledger):
     return '/'.join(skey[:-2])
 
   @classmethod
+  def from_uri(cls, uri):
+    uri = urlparse(uri)
+    if uri.scheme != 's3':
+      raise ValueError('S3Ledger does not work with %r URIs!' % uri.scheme)
+    return cls.from_netloc(uri.netloc, uri.path)
+
+  @classmethod
   def from_netloc(cls, netloc, path):
     if path not in ('', '/'):
       raise ValueError('S3 ledger does not take a path.')

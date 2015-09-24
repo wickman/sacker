@@ -5,6 +5,7 @@ import json
 import os
 import sys
 
+from sacker.config import Config
 from sacker.ledger import parse_ledger
 from sacker.store import parse_store
 from sacker.util import compute_hash, die
@@ -171,21 +172,13 @@ def setup_argparser():
 
 
 def setup_defaults(args):
-  for path in os.environ.get('SACKER_CONFIG'), os.path.expanduser('~/.sacker.json'):
-    if not path:
-      continue
+  config = Config.from_environment()
 
-    try:
-      with open(path, 'rb') as fp:
-        config = json.load(fp)
-    except IOError:
-      continue
+  if not args.ledger and config.ledger_uri:
+    args.ledger = parse_ledger(config.ledger_uri)
 
-    if 'ledger' in config and not args.ledger:
-      args.ledger = parse_ledger(config['ledger'])
-
-    if 'store' in config and not args.store:
-      args.store = parse_store(config['store'])
+  if not args.store and config.store_uri:
+    args.store = parse_store(config.store_uri)
 
   if not args.store:
     die('Must specify a store.')
