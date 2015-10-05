@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from urlparse import urlparse
 
 from sacker.ledger import Ledger
 from sacker.package import Package
@@ -14,7 +15,7 @@ class S3Ledger(Ledger):
 
   PAGE_SIZE = 100
   TAG_SEPARATOR = 'tags'
-  GENERATION_SEPARATOR = 'generations'
+  VERSION_SEPARATOR = 'versions'
 
   @classmethod
   def from_uri(cls, uri):
@@ -47,7 +48,7 @@ class S3Ledger(Ledger):
   def list_package_versions(self, package_name):
     bucket = boto3.resource('s3').Bucket(self.bucket_name)
     object_iterator = bucket.objects.filter(
-        Prefix='%s/%s/' % (package_name, self.GENERATION_SEPARATOR)
+        Prefix='%s/%s/' % (package_name, self.VERSION_SEPARATOR)
     ).page_size(self.PAGE_SIZE)
     for obj in object_iterator:
       yield int(obj.key.split('/')[-1])
@@ -66,14 +67,14 @@ class S3Ledger(Ledger):
     timestamp = self._make_timestamp()
     s3.put_object(
         Bucket=self.bucket_name,
-        Key='%s/%s/%s' % (package_name, self.GENERATION_SEPARATOR, timestamp),
+        Key='%s/%s/%s' % (package_name, self.VERSION_SEPARATOR, timestamp),
         Metadata=metadata or {},
         Body=json.dumps(json_blob)
     )
     self.tag(package_name, timestamp, 'latest')
     return timestamp
 
-  def remove(self, package_name, generation):
+  def remove(self, package_name, version):
     pass
 
   def _resolve_tag(self, package_name, tag_name):
@@ -99,28 +100,28 @@ class S3Ledger(Ledger):
       return None
 
   def info(self, package_name, spec):
-    generation = self._get_version(package_name, spec)
+    version = self._get_version(package_name, spec)
     try:
       package_info = (boto3.resource('s3')
           .Bucket(self.bucket_name)
-          .Object('%s/%s/%s' % (package_name, self.GENERATION_SEPARATOR, generation))
+          .Object('%s/%s/%s' % (package_name, self.VERSION_SEPARATOR, version))
       ).get()
     except ClientError:
-      raise self.DoesNotExist('Package %s has no version %d' % (package_name, generation))
+      raise self.DoesNotExist('Package %s has no version %d' % (package_name, version))
     package_content = json.loads(package_info['Body'].read())
     return Package(
         package_name,
-        generation,
+        version,
         package_content['sha'],
         package_content['basename'],
         package_content['mode'],
         package_info['Metadata'],
     )
 
-  def tag(self, package_name, generation, tag_name):
+  def tag(self, package_name, version, tag_name):
     if '/' in tag_name:
       raise self.Error('S3 ledger does not support "/" in tag names.')
-    json_blob = {'version': generation}
+    json_blob = {'version': version}
     s3 = boto3.client('s3')
     s3.put_object(
         Bucket=self.bucket_name,

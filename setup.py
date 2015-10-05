@@ -8,11 +8,16 @@ setup(
   entry_points = {
     'console_scripts': [
       'sacker = sacker.bin.sacker:main',
+    ],
+    'apache.aurora.client.cli.plugin': [
+        'SackerBindingHelperPlugin = sacker.extensions.aurora.binding_helper:SackerBindingHelperPlugin',
     ]
   },
   packages = [
     'sacker',
     'sacker.bin',
+    'sacker.extensions',
+    'sacker.extensions.aurora',
     'sacker.ledgers',
     'sacker.stores',
   ],

@@ -24,16 +24,16 @@ class Ledger(object):
   def add(self, package_name, basename, sha, metadata=None):
     raise NotImplementedError
 
-  def remove(self, package_name, generation):
+  def remove(self, package_name, version):
     raise NotImplementedError
 
   def latest(self, package_name):
     raise NotImplementedError
 
-  def info(self, package_name, generation):
+  def info(self, package_name, version):
     raise NotImplementedError
 
-  def tag(self, package_name, generation, tag_name):
+  def tag(self, package_name, version, tag_name):
     raise NotImplementedError
 
   def untag(self, package_name, tag_name):

@@ -20,14 +20,14 @@ class Config(object):
         config = cls.from_file(path)
       except IOError:
         continue
-      
+
       if config.ledger_uri:
         global_config.ledger_uri = config.ledger_uri
       if config.store_uri:
         global_config.store_uri = config.store_uri
-    
+
     return global_config
-      
+
   def __init__(self, ledger_uri=None, store_uri=None):
     self.ledger_uri = ledger_uri
     self.store_uri = store_uri

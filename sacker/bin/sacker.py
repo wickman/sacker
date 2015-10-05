@@ -1,7 +1,6 @@
 from __future__ import absolute_import, print_function
 
 import argparse
-import json
 import os
 import sys
 
@@ -75,17 +74,6 @@ def untag_command(ledger, store, args):
 def tags_command(ledger, store, args):
   for tag in ledger.tags(args.package):
     print(tag)
-
-
-# ledger e.g.
-#    zk://ensemble/path
-#    git://repo
-#    dynamo://table
-#
-# store e.g.
-#    hdfs://
-#    s3://<bucket>
-#    /dir
 
 
 class LedgerAction(argparse.Action):

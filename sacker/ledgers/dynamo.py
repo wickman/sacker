@@ -1,4 +1,5 @@
 import json
+from urlparse import urlparse
 
 from sacker.ledger import Ledger
 from sacker.package import Package
@@ -43,12 +44,12 @@ class DynamoLedger(Ledger):
   def init(self):
     # create main table
     attribute_definitions = [
-        { 'AttributeName': 'package_name', 'AttributeType': 'S' },
-        { 'AttributeName': 'version', 'AttributeType': 'N' },
+        {'AttributeName': 'package_name', 'AttributeType': 'S'},
+        {'AttributeName': 'version', 'AttributeType': 'N'},
     ]
     key_schema = [
-        { 'AttributeName': 'package_name', 'KeyType': 'HASH' },
-        { 'AttributeName': 'version', 'KeyType': 'RANGE' },
+        {'AttributeName': 'package_name', 'KeyType': 'HASH'},
+        {'AttributeName': 'version', 'KeyType': 'RANGE'},
     ]
     provisioned_throughput = {
         'ReadCapacityUnits': 1,
@@ -63,12 +64,12 @@ class DynamoLedger(Ledger):
 
     # create tags table
     attribute_definitions = [
-        { 'AttributeName': 'package_name', 'AttributeType': 'S' },
-        { 'AttributeName': 'tag', 'AttributeType': 'S' },
+        {'AttributeName': 'package_name', 'AttributeType': 'S'},
+        {'AttributeName': 'tag', 'AttributeType': 'S'},
     ]
     key_schema = [
-        { 'AttributeName': 'package_name', 'KeyType': 'HASH' },
-        { 'AttributeName': 'tag', 'KeyType': 'RANGE' },
+        {'AttributeName': 'package_name', 'KeyType': 'HASH'},
+        {'AttributeName': 'tag', 'KeyType': 'RANGE'},
     ]
     boto3.session.Session(region_name=self.region).client('dynamodb').create_table(
         TableName=self.tags_table,
@@ -101,7 +102,7 @@ class DynamoLedger(Ledger):
     new_latest = latest + 1 if latest is not None else 1
 
     try:
-      resp = self.connection.Table(self.table).put_item(
+      self.connection.Table(self.table).put_item(
           Item={
               'package_name': package_name,
               'version': new_latest,
@@ -117,7 +118,7 @@ class DynamoLedger(Ledger):
 
     return new_latest
 
-  def remove(self, package_name, generation):
+  def remove(self, package_name, version):
     raise NotImplementedError
 
   def latest(self, package_name):
@@ -133,20 +134,20 @@ class DynamoLedger(Ledger):
       return self._get_tag(package_name, spec)
 
   def info(self, package_name, spec):
-    generation = self._get_version(package_name, spec)
-    if generation is None:
+    version = self._get_version(package_name, spec)
+    if version is None:
       raise self.DoesNotExist('Package %s has no version %s' % (package_name, spec))
     resp = self.connection.Table(self.table).get_item(
-        Key={'package_name': package_name, 'version': generation})
+        Key={'package_name': package_name, 'version': version})
     if 'Item' not in resp:
       raise self.DoesNotExist('Package %s has no version %s' % (package_name, spec))
     item = resp['Item']
     return Package(
         package_name,
-        generation,
+        version,
         item['sha'],
         item['basename'],
-        item['mode'],
+        int(item['mode']),
         json.loads(item['metadata']),
     )
 
@@ -159,14 +160,14 @@ class DynamoLedger(Ledger):
     else:
       raise self.Error('Tag %s does not exist for %s' % (tag_name, package_name))
 
-  def tag(self, package_name, generation, tag_name):
+  def tag(self, package_name, version, tag_name):
     if tag_name == 'latest':
       raise self.Error('Cannot alter dynamic tag "latest" for Dynamo ledger.')
     self.connection.Table(self.tags_table).put_item(
         Item={
             'package_name': package_name,
             'tag': tag_name,
-            'version': int(generation),
+            'version': int(version),
         },
     )
 
