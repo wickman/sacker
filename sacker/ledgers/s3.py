@@ -84,7 +84,7 @@ class S3Ledger(Ledger):
     except ClientError:
       raise self.DoesNotExist('Package %s has no tag %r' % (package_name, tag_name))
     tag_info = json.loads(tag_info['Body'].read())
-    return tag_info['version']
+    return int(tag_info['version'])
 
   def _get_version(self, package_name, spec):
     try:
