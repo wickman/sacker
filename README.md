@@ -18,10 +18,18 @@ sacker uses a **store** to store blobs of data, addressable only by the sha of
 the blob of data.  suitable backends for sacker stores are data warehouses
 like hdfs or object stores like s3.
 
-sacker comes with both a ledger and store based on s3.  the s3 ledger
-is compatible with write-only clients and thus may be a suitable
-ledger if you want to push package artifacts from a third-party CI
-provider.
+sacker comes with a dynamo ledger and both an s3 ledger and s3 store.
+
+the dynamo ledger provides stronger consistency that detects race conditions
+on write using conditional puts.  dynamo ledger keys are autoincrementing
+integers starting at 1 for each package.  the dynamo ledger requires two
+tables: a ledger table and a tags table.  these can be initialized using
+`sacker init`.
+
+the s3 ledger is compatible with write-only clients and thus may be a
+suitable ledger if you want to push package artifacts from a third-party CI
+provider.  in order to allow writes without reads in a semi-reliable manner,
+keys in the s3 ledger are monotonically increasing timestamps.
 
 
 query operations
@@ -57,7 +65,7 @@ the ledger and store can be configured using the file ~/.sacker.json with
 two keys "ledger" and "store", e.g.
 
     {
-      "ledger": "s3://<storage-bucket-name>",
+      "ledger": "dynamo://<region>/<dynamo-table-prefix>",
       "store": "s3://<ledger-bucket-name>"
     }
 
