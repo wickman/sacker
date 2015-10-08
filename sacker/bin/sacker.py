@@ -39,6 +39,8 @@ def info_command(ledger, store, args):
     die(e)
 
 
+# TODO(wickman) There should be a combined API object so that each consumer of the API
+# is not forced to implement the upload-to-store-if-necessary-then-register-in-ledger logic.
 # TODO(wickman) Stores should only upload if the sha does not already exist.
 def add_command(ledger, store, args):
   with open(args.filename, 'rb') as fp:

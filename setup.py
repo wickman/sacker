@@ -11,6 +11,7 @@ setup(
     ],
     'apache.aurora.client.cli.plugin': [
         'SackerBindingHelperPlugin = sacker.extensions.aurora.binding_helper:SackerBindingHelperPlugin',
+        'SackerDeployCommandPlugin = sacker.extensions.aurora.deploy_noun:DeployCommandPlugin',
     ]
   },
   packages = [

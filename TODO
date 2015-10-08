@@ -1,4 +1,7 @@
 1) plumb metadata k/v pairs through cli
 2) add verification to the s3 downloader (sha check)
-3) add utility to generate s3 download command line
-4) add import/export utilities for ledger migrations/backups
+3) don't upload if the blob already exists
+4) add utility to generate s3 download command line
+5) add import/export utilities for ledger migrations/backups
+6) add optimization: info_all (with default impl)
+7) add tests for deploy_noun
